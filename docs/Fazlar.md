@@ -1,1 +1,1 @@
-test deneme fazlar
+test deneme
