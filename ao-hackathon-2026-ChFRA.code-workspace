@@ -5,7 +5,7 @@
 		}
 	],
 	"settings": {
-		"chat.utilityModel": "saka/claude-haiku-4-5-20251001",
-		"chat.utilitySmallModel": "saka/claude-haiku-4-5-20251001"
+		"chat.utilityModel": "saka/glm-5.2",
+		"chat.utilitySmallModel": "saka/glm-5.2"
 	}
 }
