@@ -1,1 +1,53 @@
-{}
+{
+	"project": {
+		"name": "Alert Storm Correlator",
+		"track": "SRE + AI",
+		"team": "ChFRA",
+		"language": "Python",
+		"runtime": "in-memory",
+		"goal": "3000 alarmı en fazla 15, tercihen çok daha az kanıt destekli anlamlı olay kartına indirgemek"
+	},
+	"inputs": {
+		"alarms": "data/alarms.json",
+		"service_dependencies": "data/service_dependencies.csv",
+		"host_inventory": "data/host_inventory.csv"
+	},
+	"outputs": {
+		"terminal": "Olay kartları raporu",
+		"json": "demo/event_cards.json",
+		"html": "demo/event_cards.html"
+	},
+	"prompts": [
+		{
+			"file": "prompts/root_cause_explainer.md",
+			"purpose": "Kök neden hipotezinin açıklanabilir RCA metni"
+		},
+		{
+			"file": "prompts/noise_filter_prompt.md",
+			"purpose": "Gürültü eleme gerekçesinin doğal dil açıklaması"
+		},
+		{
+			"file": "prompts/sre_system_prompt.md",
+			"purpose": "SRE mimari yönlendirme ve kapsam"
+		}
+	],
+	"decision_mechanisms": {
+		"time_clustering": "Servis bazında 10 dakikalık oturum; aynı kökte 30 dakika boşluğa kadar birleştirme",
+		"topology_correlation": "Aktif A->B grafında SCC ve uç kök bileşenlerine yönlü erişim",
+		"root_cause_scoring": "Uç bileşenler arasında şiddet, ilk zaman ve servis adı; olasılık değildir",
+		"noise_elimination": "Zayıf sinyal ve yakın güçlü topolojik kanıt yokluğu; türev etkiler korunur",
+		"explainability": "MCP ile tüm olay alarmları, sayımlar, host envanteri, yollar ve karşı olasılıklar",
+		"action_management": "update_action_status ile bellek içi durum değişimi ve geçmiş; aynı kanıtta yeniden yükleme koruması"
+	},
+	"constraints": {
+		"max_event_cards": 15,
+		"database": "Yok (in-memory)",
+		"auth": "Yok (kapsam dışı)"
+	},
+	"run": {
+		"install": "pip install -r requirements.txt",
+		"command": "python -m src.mcp_server",
+		"cli": "python -m src.main",
+		"test": "python -m unittest discover -s tests -v"
+	}
+}

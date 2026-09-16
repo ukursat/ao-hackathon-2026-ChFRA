@@ -1,0 +1,244 @@
+# 🔴 OLAY ÖZETİ — 3.000 Alarm → 13 Olay Adayı
+
+🔵 Repo verisinin tamamı yeniden işlendi; veri sözlüğüne göre kayıtlar sentetiktir. 2.986 alarm 13 kartta, 14 alarm bastırılan gürültü adayıdır. Kartlarda 883 kök-bileşen sinyali ve 2.103 türev etki korunur. Tekrarlar ve belirtiler ayrı olay olarak listelenmez; kaynak kayıtlar silinmez. Sayılar dedup sonrası benzersiz hata sayısı değil, gruba atanmış ham alarm sayısıdır.
+
+🔵 Tarih: 2026-09-10; saat dilimi kaynakta yoktur. Aşağıdaki aralıklar ilk/son alarm zamanıdır, doğrulanmış kesinti süresi değildir. Güncel canlı çöküş ve recovery bilgisi yoktur. 15 üst sınırdır; 13 kart daha az ve daha isabetli olay hedefinin tamamlandığı anlamına gelmez. Sıralama somut arıza kanıtı ve olası etkiye göre önerilen inceleme sırasıdır; ölçülmüş iş kaybı sıralaması değildir.
+
+| Öncelik | Kart | Kök aday / inceleme konusu | Alarm | Zaman aralığı | Aksiyon sahibi | Durum |
+|---|---|---|---:|---|---|---|
+| 1 | EVT-005 | billing-db / disk doluluğu | 169 | 01:31:30–03:28:33 | DBA-OnCall | Açık |
+| 2 | EVT-002 | payment-provider-gw / erişim sorunu | 817 | 01:30:30–03:30:19 | CoreBiz-OnCall | Açık |
+| 3 | EVT-001 | dns-resolver / ağ kaybı | 955 | 01:30:53–03:30:12 | SRE-OnCall | Açık |
+| 4 | EVT-004 | subscriber-db / ağ kaybı | 303 | 01:31:00–03:29:50 | DBA-OnCall | Açık |
+| 5 | EVT-006 | message-queue / ağ kaybı | 136 | 01:33:44–03:30:20 | SRE-OnCall | Açık |
+| 6 | EVT-009 | batch-scheduler / pencere çakışması | 30 | 01:35:16–03:24:59 | SRE-OnCall | Açık |
+| 7 | EVT-003 | cache-cluster / gecikme adayı | 333 | 01:30:23–03:30:13 | SRE-OnCall | Açık |
+| 8 | EVT-008 | object-store / bellek alarmı doğrulaması | 65 | 01:36:44–03:29:53 | SRE-OnCall | Açık |
+| 9 | EVT-010 | sms-gateway / flapping doğrulaması | 28 | 01:37:33–03:26:49 | Platform-OnCall | Açık |
+| 10 | EVT-012 | kyc-provider-gw / gecikme doğrulaması | 38 | 01:36:51–03:30:07 | SRE-OnCall | Açık |
+| 11 | EVT-007 | load-balancer / sertifika uyarısı | 99 | 01:30:20–03:29:20 | SRE-OnCall | Açık |
+| 12 | EVT-011 | ntp-service / CPU alarmı doğrulaması | 10 | 01:53:06–02:17:37 | SRE-OnCall | Açık |
+| 13 | EVT-013 | ntp-service / bellek alarmı doğrulaması | 3 | 03:18:48–03:26:51 | SRE-OnCall | Açık |
+
+🟢 Sahip ve Açık durumları yeni analiz çıktısından rapora kaydedilmiştir; başka çalışan MCP sürecinin geçmişi okunmamıştır. Mevcut MCP sunucusu kanıt getirir ve aksiyon durumu tutar; failover/disk genişletme/iş durdurma aracı yoktur. Aşağıdaki çağrılar MCP istemcisinden yapılabilen analiz çağrılarıdır, uygulanmış müdahale değildir. Canlı takip örneği: `update_action_status(event_id="EVT-005", new_status="İnceleniyor")`. Gürültü kanıtları: `get_noise_audit_log()`.
+
+## 🔴 Billing DB Disk Doluluğu — EVT-005
+### 🎯 KÖK NEDEN (ROOT CAUSE)
+🔴 billing-db / ao-035-billing: Disk kapasitesi tükenmesi hipotezi. Etkilenen/atanan servisler: billing-db, invoice-batch. Alarm sayısı: 169. Zaman aralığı: 2026-09-10T01:31:30 → 2026-09-10T03:28:33.
+
+### ⛓️ NEDEN-SONUÇ ZİNCİRİ (CAUSALITY)
+🔴 TETİKLEYİCİ: ALM-00467, 02:05:06: disk %100 dolu; 17 disk_full kaydı tek örüntüde özetlendi.
+🟠 YAN ETKİ: ALM-00468, 02:05:34: tablespace genişletilemedi. `invoice-batch → billing-db` bağımlılığı batch etkisini destekler.
+💥 SONUÇ: 113 kök-bileşen sinyali, 56 türev etki adayı. Doğrudan yazma hatası var; bütün kart aralığı disk kesintisi veya mevcut çöküş sayılmaz.
+### 🛡️ ELENEN İHTİMALLER (COUNTER-FACTUALS)
+🔵 Elenen İhtimal: Yalnızca invoice-batch yazılım hatasının bütün belirtileri açıklaması.
+❌ Neden Elendi: Tek başına yetersiz açıklamadır; DB hostunda %100 doluluk ve ardından tablespace hatası var. Batch yükünün kapasiteyi tüketmesi, yedekleme etkisi veya storage problemi elenmedi.
+
+### 🟢 AKSİYON VE ÇÖZÜM (REMEDIATION)
+🟢 Aksiyon: Önce disk/inode ve tablespace kapasitesini doğrula; onayla kapasite artırımı veya güvenli log temizliği değerlendir. MCP yalnızca kanıt getirir. Aksiyon durumu: Açık.
+👤 Sorumlu Ekip: DBA-OnCall; Storage/Platform ile koordinasyon.
+🛠️ MCP Tool: `explain_root_cause(event_id="EVT-005")`
+
+## 🔴 Ödeme Sağlayıcısı Erişim Sorunu — EVT-002
+### 🎯 KÖK NEDEN (ROOT CAUSE)
+🔴 payment-provider-gw / ao-053-payment: Sağlayıcı veya erişim yolu arızası hipotezi. Etkilenen/atanan servisler: mobile-bff, order-service, payment-provider-gw, payment-service. Alarm sayısı: 817. Zaman aralığı: 2026-09-10T01:30:30 → 2026-09-10T03:30:19.
+
+### ⛓️ NEDEN-SONUÇ ZİNCİRİ (CAUSALITY)
+🔴 TETİKLEYİCİ: ALM-00858, 02:40:28: ext_unreach / HTTP 504; ALM-00857, 02:40:37: 503 ms dış servis yanıtı.
+🟠 YAN ETKİ: Olası etki yönü `payment-provider-gw ⇒ payment-service ⇒ order-service ⇒ mobile-bff`; bağımlılık grafında oklar ters yöndedir.
+💥 SONUÇ: 113 kök-bileşen sinyali ve 704 türev etki adayı. Ödeme başarısızlığının kapsamı ve toparlanma doğrulanmadı; 02:40 öncesi alarmlar bu arızanın başlangıcı sayılmaz.
+### 🛡️ ELENEN İHTİMALLER (COUNTER-FACTUALS)
+🔵 Elenen İhtimal: Sorunun sadece mobile-bff içinde olması.
+❌ Neden Elendi: Tek başına yeterli değildir; dış servis geçidindeki doğrudan erişim alarmını açıklamaz. DNS/TLS/ağ sorunu ile sağlayıcı kesintisi ayrıştırılamadı; ikisi de elenmedi.
+
+### 🟢 AKSİYON VE ÇÖZÜM (REMEDIATION)
+🟢 Aksiyon: Sağlayıcı erişimini farklı ağ yolundan, DNS ve TLS seviyesinde doğrula; onaylı circuit-breaker/alternatif sağlayıcı runbook'unu değerlendir. Retry fırtınası oluşturma. Aksiyon durumu: Açık.
+👤 Sorumlu Ekip: CoreBiz-OnCall / Ödeme Entegrasyon Ekibi.
+🛠️ MCP Tool: `explain_root_cause(event_id="EVT-002")`
+
+## 🔴 DNS Hostunda Ağ Kaybı — EVT-001
+### 🎯 KÖK NEDEN (ROOT CAUSE)
+🔴 dns-resolver / ao-045-dns: Ağ erişim bozulması hipotezi. Etkilenen/atanan servisler: api-gateway, billing-service, charging-service, dns-resolver, subscriber-service, web-bff. Alarm sayısı: 955. Zaman aralığı: 2026-09-10T01:30:53 → 2026-09-10T03:30:12.
+
+### ⛓️ NEDEN-SONUÇ ZİNCİRİ (CAUSALITY)
+🔴 TETİKLEYİCİ: ALM-00043, 01:42:55: %88 paket kaybı; ALM-00049, 01:45:04: link DOWN.
+🟠 YAN ETKİ: Olası etki `dns-resolver ⇒ api-gateway ⇒ web-bff` ve `dns-resolver ⇒ subscriber-service ⇒ charging-service ⇒ billing-service`.
+💥 SONUÇ: 95 kök-bileşen sinyali, 860 türev etki adayı. Yol ve yakın zaman, nedenselliği tek başına doğrulamaz; tüm servislerin çöktüğü bilinmiyor.
+### 🛡️ ELENEN İHTİMALLER (COUNTER-FACTUALS)
+🔵 Elenen İhtimal: Yalnızca web-bff uygulama hatası.
+❌ Neden Elendi: DNS hostundaki doğrudan link DOWN/paket kaybını açıklamaya yetmez. Yerel NIC, ortak switch veya başka ağ arızası elenmedi; EVT-004/006 ile ortak neden araştırılmalı, kanıtsız birleştirilmemeli.
+
+### 🟢 AKSİYON VE ÇÖZÜM (REMEDIATION)
+🟢 Aksiyon: DNS erişimini ve arayüz sayaçlarını doğrula; switch/kabin eşleşmesini karşılaştır. Onaylı yedek yol olmadan failover yapma. Aksiyon durumu: Açık.
+👤 Sorumlu Ekip: SRE-OnCall / L3 Network.
+🛠️ MCP Tool: `explain_root_cause(event_id="EVT-001")`
+
+## 🔴 Subscriber DB Ağ Erişim Kaybı — EVT-004
+### 🎯 KÖK NEDEN (ROOT CAUSE)
+🔴 subscriber-db / ao-033-subscriber: DB hostuna ağ erişim sorunu hipotezi. Etkilenen/atanan servisler: reconciliation-batch, report-batch, subscriber-db. Alarm sayısı: 303. Zaman aralığı: 2026-09-10T01:31:00 → 2026-09-10T03:29:50.
+
+### ⛓️ NEDEN-SONUÇ ZİNCİRİ (CAUSALITY)
+🔴 TETİKLEYİCİ: ALM-00029, 01:42:37: %72 paket kaybı; ALM-00034, 01:44:52: link DOWN.
+🟠 YAN ETKİ: `reconciliation-batch → subscriber-db` ve `report-batch → subscriber-db` bağımlılıkları batch erişim sorununu açıklayabilir.
+💥 SONUÇ: 172 kök-bileşen sinyali ve 131 türev etki adayı. Ağ kanıtı var; DB veri kaybı veya bütün aralıkta erişilemezlik kanıtlanmadı.
+### 🛡️ ELENEN İHTİMALLER (COUNTER-FACTUALS)
+🔵 Elenen İhtimal: Her belirtinin yalnızca DB sorgu kilidinden kaynaklanması.
+❌ Neden Elendi: Salt sorgu kilidi link DOWN'u açıklamaz. Sorgu kilidiyle ağ sorununun eşzamanlı olması ve ortak altyapı arızası elenmedi.
+
+### 🟢 AKSİYON VE ÇÖZÜM (REMEDIATION)
+🟢 Aksiyon: Önce DB hostuna bağlantı ve arayüz sağlığını doğrula; ağ kanıtı incelenmeden sorgu sonlandırma/DB failover uygulama. Aksiyon durumu: Açık.
+👤 Sorumlu Ekip: DBA-OnCall / L3 Network.
+🛠️ MCP Tool: `explain_root_cause(event_id="EVT-004")`
+
+## 🔴 Kuyruk Hostunda Ağ Kaybı — EVT-006
+### 🎯 KÖK NEDEN (ROOT CAUSE)
+🔴 message-queue / ao-039-message: Ağ erişim bozulması hipotezi. Etkilenen/atanan servisler: message-queue, notification-service. Alarm sayısı: 136. Zaman aralığı: 2026-09-10T01:33:44 → 2026-09-10T03:30:20.
+
+### ⛓️ NEDEN-SONUÇ ZİNCİRİ (CAUSALITY)
+🔴 TETİKLEYİCİ: ALM-00036, 01:42:54: %85 paket kaybı; ALM-00039, 01:44:06: link DOWN.
+🟠 YAN ETKİ: `notification-service → message-queue` bağımlılığı nedeniyle bildirim erişimi/işlenmesi etkilenmiş olabilir.
+💥 SONUÇ: 86 kök-bileşen sinyali ve 50 türev etki adayı. Mesaj kaybı, kuyruk derinliği ve toparlanma ayrıca ölçülmeli.
+### 🛡️ ELENEN İHTİMALLER (COUNTER-FACTUALS)
+🔵 Elenen İhtimal: Yalnızca bildirim uygulaması hatası.
+❌ Neden Elendi: Kuyruk hostundaki ağ arızası sinyallerini tek başına açıklamaz. Broker sorunu, NIC veya ortak ağ arızası birbirinden ayrılmadı.
+
+### 🟢 AKSİYON VE ÇÖZÜM (REMEDIATION)
+🟢 Aksiyon: Ağ erişimini, broker sağlığını ve tüketici gecikmesini doğrula; mesaj silme veya kontrolsüz broker restartı yapma. Aksiyon durumu: Açık.
+👤 Sorumlu Ekip: SRE-OnCall / L3 Network ve Mesajlaşma Ekibi.
+🛠️ MCP Tool: `explain_root_cause(event_id="EVT-006")`
+
+## 🔴 Batch Penceresi Çakışması — EVT-009
+### 🎯 KÖK NEDEN (ROOT CAUSE)
+🔴 batch-scheduler / ao-048-batch: Batch pencere çakışması doğrulama hipotezi; motorun seçtiği network_flap özetinden daha doğrudan planlama kanıtıdır. Etkilenen/atanan servisler: batch-scheduler. Alarm sayısı: 30. Zaman aralığı: 2026-09-10T01:35:16 → 2026-09-10T03:24:59.
+
+### ⛓️ NEDEN-SONUÇ ZİNCİRİ (CAUSALITY)
+🔴 TETİKLEYİCİ: ALM-01107, 03:05:28: toplu iş penceresi çakışması; dört batch_overlap kaydı tek örüntüde özetlendi.
+🟠 YAN ETKİ: Scheduler'a bağımlı batch servisleri topolojide var; bu kartta gözlenen/atanan türev servis yok. Potansiyel etki gerçekleşmiş gibi sunulmadı.
+💥 SONUÇ: 30 kök-bileşen sinyali, 0 türev etki. İşlerin gerçekten başarısız olduğu veya geciktiği bu kartla kanıtlanmıyor.
+### 🛡️ ELENEN İHTİMALLER (COUNTER-FACTUALS)
+🔵 Elenen İhtimal: Bütün olayın yalnızca flapping olması.
+❌ Neden Elendi: Doğrudan batch_overlap kaydı salt ağ açıklamasını yetersiz bırakıyor. Normal eşzamanlı çalışma veya yanlış alarm ihtimali iş planı olmadan elenemez.
+
+### 🟢 AKSİYON VE ÇÖZÜM (REMEDIATION)
+🟢 Aksiyon: 03:05 civarı çalışan işlerin kimliklerini ve ortak kaynaklarını karşılaştır; onayla sonraki tetiklemeyi ertelemeyi değerlendir. Aksiyon durumu: Açık.
+👤 Sorumlu Ekip: SRE-OnCall / Batch Operasyon Ekibi.
+🛠️ MCP Tool: `explain_root_cause(event_id="EVT-009")`
+
+## 🔴 Cache Gecikmesi Doğrulaması — EVT-003
+### 🎯 KÖK NEDEN (ROOT CAUSE)
+🔴 cache-cluster / ao-037-cache: Gecikme hipotezi, kesin kaynak tükenmesi değil. Etkilenen/atanan servisler: auth-service, cache-cluster, session-service. Alarm sayısı: 333. Zaman aralığı: 2026-09-10T01:30:23 → 2026-09-10T03:30:13.
+
+### ⛓️ NEDEN-SONUÇ ZİNCİRİ (CAUSALITY)
+🔴 TETİKLEYİCİ: ALM-01714, 01:45:29: p99 87 ms alarmı. Servis SLO'su bilinmediği için kesin tetikleyici değildir.
+🟠 YAN ETKİ: Olası etki `cache-cluster ⇒ session-service ⇒ auth-service`; semptomlar bağımsız kök olarak çoğaltılmadı.
+💥 SONUÇ: 62 kök-bileşen sinyali, 271 türev etki adayı. Cache kesintisi veya kimlik doğrulamanın tamamen durduğu kanıtlanmadı.
+### 🛡️ ELENEN İHTİMALLER (COUNTER-FACTUALS)
+🔵 Elenen İhtimal: Yalnızca auth-service hatası — kesin elenmedi.
+❌ Neden Elendi: Eleme için yeterli kanıt yok; cache alarmı ve bağımlılık yolu türev etkiyi destekler ama istemci yükü/bağımsız uygulama sorununu dışlamaz.
+
+### 🟢 AKSİYON VE ÇÖZÜM (REMEDIATION)
+🟢 Aksiyon: Cache p99, hit-rate, bellek ve bağlantı metriklerini SLO ile karşılaştır; cache flush/restart uygulama. Aksiyon durumu: Açık.
+👤 Sorumlu Ekip: SRE-OnCall / Cache ve Session Servis Sahipleri.
+🛠️ MCP Tool: `explain_root_cause(event_id="EVT-003")`
+
+## 🔴 Object Store Bellek Alarmı — EVT-008
+### 🎯 KÖK NEDEN (ROOT CAUSE)
+🔴 object-store / ao-041-object: Bellek baskısı hipotezi zayıf; seçilen mesaj %39 kullanım bildiriyor. Etkilenen/atanan servisler: catalog-service, object-store. Alarm sayısı: 65. Zaman aralığı: 2026-09-10T01:36:44 → 2026-09-10T03:29:53.
+
+### ⛓️ NEDEN-SONUÇ ZİNCİRİ (CAUSALITY)
+🔴 TETİKLEYİCİ: ALM-02036, 02:45:19: %39 bellek. Bu kayıt tek başına tükenme veya sızıntı başlangıcı değildir.
+🟠 YAN ETKİ: `catalog-service → object-store` yolu olası catalog etkisini açıklar; gerçek etki doğrulanmadı.
+💥 SONUÇ: 34 kök-bileşen sinyali, 31 türev etki adayı; mevcut çöküş kanıtı yetersiz.
+### 🛡️ ELENEN İHTİMALLER (COUNTER-FACTUALS)
+🔵 Elenen İhtimal: Bu mesajın tek başına bellek tükenmesini kanıtlaması.
+❌ Neden Elendi: %39 kullanım tek başına tükenme kanıtı değildir. Cgroup limiti, tahsis hatası, farklı host sorunu veya catalog uygulama hatası elenmedi.
+
+### 🟢 AKSİYON VE ÇÖZÜM (REMEDIATION)
+🟢 Aksiyon: Bellek limitleri ve tahsis hatalarını kontrol et; baseline olmadan restart veya kapasite artırımı yapma. Aksiyon durumu: Açık.
+👤 Sorumlu Ekip: SRE-OnCall / Object Store Ekibi.
+🛠️ MCP Tool: `explain_root_cause(event_id="EVT-008")`
+
+## 🔴 SMS Gateway Flapping Doğrulaması — EVT-010
+### 🎯 KÖK NEDEN (ROOT CAUSE)
+🔴 sms-gateway / ao-055-sms: Arayüz kararsızlığı adayı. Etkilenen/atanan servisler: sms-gateway. Alarm sayısı: 28. Zaman aralığı: 2026-09-10T01:37:33 → 2026-09-10T03:26:49.
+
+### ⛓️ NEDEN-SONUÇ ZİNCİRİ (CAUSALITY)
+🔴 TETİKLEYİCİ: ALM-01820, 02:13:26: arayüz 51 kez durum değiştirdi; bu sayının ölçüm süresi bilinmiyor.
+🟠 YAN ETKİ: notification-service bağımlılığı var; bu kartta türev etki atanmadı, SMS teslimi bozulmuş kabul edilmedi.
+💥 SONUÇ: 28 kök-bileşen sinyali; teslimat başarısı ve kalıcı link kaybı ölçülmeli.
+### 🛡️ ELENEN İHTİMALLER (COUNTER-FACTUALS)
+🔵 Elenen İhtimal: Bakım kaynaklı normal arayüz geçişleri — elenmedi.
+❌ Neden Elendi: Bakım takvimi ve sayaç zaman aralığı yok; alarm sayısı tek başına karşı ihtimali çürütemez.
+
+### 🟢 AKSİYON VE ÇÖZÜM (REMEDIATION)
+🟢 Aksiyon: SMS teslim oranını, arayüz loglarını ve bakım planını doğrula; yalnızca alarm tekrarına dayanarak trafik taşıma. Aksiyon durumu: Açık.
+👤 Sorumlu Ekip: Platform-OnCall / SMS Entegrasyon Ekibi.
+🛠️ MCP Tool: `explain_root_cause(event_id="EVT-010")`
+
+## 🔴 KYC Gecikme Alarmı — EVT-012
+### 🎯 KÖK NEDEN (ROOT CAUSE)
+🔴 kyc-provider-gw / ao-056-kyc: Gecikme adayı; 40 ms'nin kritik olup olmadığı bilinmiyor. Etkilenen/atanan servisler: kyc-provider-gw. Alarm sayısı: 38. Zaman aralığı: 2026-09-10T01:36:51 → 2026-09-10T03:30:07.
+
+### ⛓️ NEDEN-SONUÇ ZİNCİRİ (CAUSALITY)
+🔴 TETİKLEYİCİ: ALM-01427, 01:46:44: p99 40 ms. Gerçek tetikleyici ve normal seviye doğrulanmadı.
+🟠 YAN ETKİ: auth-service bağımlılığı olası etkidir; bu kartta gerçekleşmiş türev etki kaydı yok.
+💥 SONUÇ: 38 kök-bileşen sinyali; KYC işlemlerinin başarısız olduğu sonucuna varılamaz.
+### 🛡️ ELENEN İHTİMALLER (COUNTER-FACTUALS)
+🔵 Elenen İhtimal: Yanlış eşik veya normal gecikme dalgalanması — elenmedi.
+❌ Neden Elendi: SLO ve baseline olmadığı için bu alternatifi çürütecek kanıt yoktur.
+
+### 🟢 AKSİYON VE ÇÖZÜM (REMEDIATION)
+🟢 Aksiyon: KYC işlem başarısını ve p99 eşiğini doğrula; yalnızca 40 ms alarmına dayanarak failover yapma. Aksiyon durumu: Açık.
+👤 Sorumlu Ekip: SRE-OnCall / KYC Entegrasyon Ekibi.
+🛠️ MCP Tool: `explain_root_cause(event_id="EVT-012")`
+
+## 🔴 Load Balancer Sertifika Uyarısı — EVT-007
+### 🎯 KÖK NEDEN (ROOT CAUSE)
+🔴 load-balancer / ao-042-load: Süre dolumu uyarısı, mevcut sertifika kesintisi kanıtı değil. Etkilenen/atanan servisler: load-balancer. Alarm sayısı: 99. Zaman aralığı: 2026-09-10T01:30:20 → 2026-09-10T03:29:20.
+
+### ⛓️ NEDEN-SONUÇ ZİNCİRİ (CAUSALITY)
+🔴 TETİKLEYİCİ: ALM-01499, 01:30:20: sertifika 26 gün sonra sona erecek; acil arıza tetikleyicisi değildir.
+🟠 YAN ETKİ: api-gateway bağımlılığı bulunur fakat bu kartta türev etki atanmadı; TLS kesintisi varsayılmadı.
+💥 SONUÇ: 99 kök-bileşen sinyali; bakım uyarısı severity 4 olduğu için aday kalmış olabilir. Kayıtlar otomatik olarak tamamen gürültü ilan edilmedi.
+### 🛡️ ELENEN İHTİMALLER (COUNTER-FACTUALS)
+🔵 Elenen İhtimal: ALM-01499'un o anda süresi dolmuş sertifika kanıtı olması.
+❌ Neden Elendi: Mesaj açıkça 26 gün kaldığını söylüyor. Başka sertifika, yanlış zincir veya TLS yapılandırma sorunu ise elenmedi.
+
+### 🟢 AKSİYON VE ÇÖZÜM (REMEDIATION)
+🟢 Aksiyon: Sertifika envanteri ve TLS probe ile doğrula; bakım yenilemesini planla, doğrudan LB restartı yapma. Aksiyon durumu: Açık.
+👤 Sorumlu Ekip: SRE-OnCall / Platform ve Sertifika Yönetimi.
+🛠️ MCP Tool: `explain_root_cause(event_id="EVT-007")`
+
+## 🔴 NTP CPU Alarmı Doğrulaması — EVT-011
+### 🎯 KÖK NEDEN (ROOT CAUSE)
+🔴 ntp-service / ao-047-ntp: CPU baskısı hipotezi seçilen mesajla doğrulanmıyor. Etkilenen/atanan servisler: ntp-service. Alarm sayısı: 10. Zaman aralığı: 2026-09-10T01:53:06 → 2026-09-10T02:17:37.
+
+### ⛓️ NEDEN-SONUÇ ZİNCİRİ (CAUSALITY)
+🔴 TETİKLEYİCİ: ALM-02762, 02:13:10: CPU %26. Bu değer tek başına tükenme tetikleyicisi değildir.
+🟠 YAN ETKİ: Veri grafında NTP için bağımlılık kenarı yok; diğer servislerde saat bozulması iddia edilemez.
+💥 SONUÇ: 10 kök-bileşen sinyali, türev etki yok; NTP sağlık ve saat sapması ölçülmeli.
+### 🛡️ ELENEN İHTİMALLER (COUNTER-FACTUALS)
+🔵 Elenen İhtimal: %26 CPU mesajının tek başına CPU tükenmesini kanıtlaması.
+❌ Neden Elendi: Kullanım yüzdesi tek başına kuyruklanma/throttling kanıtı değildir. Yanlış alarm, özel CPU kotası veya başka NTP arızası elenmedi.
+
+### 🟢 AKSİYON VE ÇÖZÜM (REMEDIATION)
+🟢 Aksiyon: CPU kotası, throttling, NTP reachability ve offset değerlerini doğrula; gereksiz servis restartından kaçın. Aksiyon durumu: Açık.
+👤 Sorumlu Ekip: SRE-OnCall / Zaman Senkronizasyonu Ekibi.
+🛠️ MCP Tool: `explain_root_cause(event_id="EVT-011")`
+
+## 🔴 NTP Bellek Alarmı Doğrulaması — EVT-013
+### 🎯 KÖK NEDEN (ROOT CAUSE)
+🔴 ntp-service / ao-047-ntp: Bellek baskısı hipotezi zayıf. Etkilenen/atanan servisler: ntp-service. Alarm sayısı: 3. Zaman aralığı: 2026-09-10T03:18:48 → 2026-09-10T03:26:51.
+
+### ⛓️ NEDEN-SONUÇ ZİNCİRİ (CAUSALITY)
+🔴 TETİKLEYİCİ: ALM-01880, 03:26:51: bellek %38; gerçek sızıntı başlangıcı bilinmiyor.
+🟠 YAN ETKİ: Graf üzerinde gözlenen bağımlı servis yok. EVT-011 ile 61 dakika 11 saniye boşluk olduğundan aynı kesintiye zorla birleştirilmedi.
+💥 SONUÇ: 3 kök-bileşen sinyali, türev etki yok; bu oturum doğrulanmış çöküş değildir.
+### 🛡️ ELENEN İHTİMALLER (COUNTER-FACTUALS)
+🔵 Elenen İhtimal: %38 bellek mesajının tek başına OOM veya sızıntı kanıtı olması.
+❌ Neden Elendi: OOM olayı, tahsis hatası veya artış trendi sunulmuyor. Normal dalgalanma, özel bellek limiti veya başka arıza elenmedi.
+
+### 🟢 AKSİYON VE ÇÖZÜM (REMEDIATION)
+🟢 Aksiyon: Bellek trendi, limitler ve NTP sağlık kontrolünü doğrula; alarmı kapatma kararını kanıtla ver. Aksiyon durumu: Açık.
+👤 Sorumlu Ekip: SRE-OnCall / Zaman Senkronizasyonu Ekibi.
+🛠️ MCP Tool: `explain_root_cause(event_id="EVT-013")`
