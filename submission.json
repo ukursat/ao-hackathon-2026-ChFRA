@@ -1,53 +1,96 @@
 {
-	"project": {
-		"name": "Alert Storm Correlator",
-		"track": "SRE + AI",
-		"team": "ChFRA",
-		"language": "Python",
-		"runtime": "in-memory",
-		"goal": "3000 alarmı en fazla 15, tercihen çok daha az kanıt destekli anlamlı olay kartına indirgemek"
-	},
-	"inputs": {
-		"alarms": "data/alarms.json",
-		"service_dependencies": "data/service_dependencies.csv",
-		"host_inventory": "data/host_inventory.csv"
-	},
-	"outputs": {
-		"terminal": "Olay kartları raporu",
-		"json": "demo/event_cards.json",
-		"html": "demo/event_cards.html"
-	},
-	"prompts": [
-		{
-			"file": "prompts/root_cause_explainer.md",
-			"purpose": "Kök neden hipotezinin açıklanabilir RCA metni"
-		},
-		{
-			"file": "prompts/noise_filter_prompt.md",
-			"purpose": "Gürültü eleme gerekçesinin doğal dil açıklaması"
-		},
-		{
-			"file": "prompts/sre_system_prompt.md",
-			"purpose": "SRE mimari yönlendirme ve kapsam"
-		}
-	],
-	"decision_mechanisms": {
-		"time_clustering": "Servis bazında 10 dakikalık oturum; aynı kökte 30 dakika boşluğa kadar birleştirme",
-		"topology_correlation": "Aktif A->B grafında SCC ve uç kök bileşenlerine yönlü erişim",
-		"root_cause_scoring": "Uç bileşenler arasında şiddet, ilk zaman ve servis adı; olasılık değildir",
-		"noise_elimination": "Zayıf sinyal ve yakın güçlü topolojik kanıt yokluğu; türev etkiler korunur",
-		"explainability": "MCP ile tüm olay alarmları, sayımlar, host envanteri, yollar ve karşı olasılıklar",
-		"action_management": "update_action_status ile bellek içi durum değişimi ve geçmiş; aynı kanıtta yeniden yükleme koruması"
-	},
-	"constraints": {
-		"max_event_cards": 15,
-		"database": "Yok (in-memory)",
-		"auth": "Yok (kapsam dışı)"
-	},
-	"run": {
-		"install": "pip install -r requirements.txt",
-		"command": "python -m src.mcp_server",
-		"cli": "python -m src.main",
-		"test": "python -m unittest discover -s tests -v"
-	}
+
+"takim": {
+
+  "ad": "ChFRA",
+
+  "uyeler": ["ABDULHALIM KORKUT", "IBRAHIM GULACAR", "KURSAT USLU", "MUHAMMET ELBERR OZDEMIR"],
+
+  "iletisim": "kursat.uslu@turkcell.com.tr"
+
+},
+
+"proje": {
+
+  "ad": "Alarm Analyzer",
+
+  "ozet": "NetworkX ile alarmları topolojik olarak korele edip kök nedene inen ve Blast Radius tahmini yapan AI destekli SRE asistanı.",
+
+  "deploy_url": null
+
+},
+
+"calistirma": {
+
+  "komut": "python src/main.py",
+
+  "on_kosullar": ["python 3.11+", "pip install -r requirements.txt"],
+
+  "veri_yolu": "./data"
+
+},
+
+"ai_kullanimi": {
+
+  "platform": "SAKA",
+
+  "modeller": [
+
+   { "ad": "gpt", "surum": "5.3 codex", "kullanim": "kodlama | analiz | aciklama" }
+
+  ],
+
+  "mcp_sunuculari": [
+
+   {
+
+    "ad": "sre-alert-correlator-mcp",
+
+    "tip": "custom",
+
+    "islev": "get_noise_audit_log, explain_root_cause ve update_action_status araçlarıyla graf korelasyonu ve XAI işlevlerini sağlar."
+
+   }
+
+  ],
+
+  "apiler": [],
+
+  "insan_ai_is_bolumu": "Sistem mimarisi, NetworkX graf mantığı ve SRE kuralları insanda; XAI raporlaması, Blast Radius tahmini ve kod üretimi GPT 5.3 modelindedir."
+
+},
+
+"cozum": {
+
+  "yaklasim": "service_dependencies.csv verisini NetworkX ile DiGraph'a çevirip, alarmları zaman penceresi ve topolojik bağımlılığa (A->B) göre eleyerek kök nedenleri bulduk.",
+
+  "x_factor": "Kök nedene bakarak henüz etkilenmeyen servisleri tahmin eden 'Blast Radius', elenen alarmların Audit Log'u ve Karşı Olasılık (Counter Probabilities) raporlaması.",
+
+  "olctugumuz_metrikler": {
+
+   "indirgeme_orani": "3000 alarmdan 13 olay kartına",
+
+   "gurultu_eleme_orani": "%69.8 (2094 arka plan ve türev alarm elendi)"
+
+  }
+
+},
+
+"sunum": {
+
+  "demo_akisi": [
+
+   "1. Terminalde görsel gürültü eleme hunisinin çalıştırılması",
+
+   "2. Olay kartlarından birinin (örn: Network Kesintisi) kök nedeninin XAI ile açıklanması",
+
+   "3. Blast Radius (Etki Yarıçapı) ile çökmesi beklenen sistem tahmininin gösterilmesi",
+
+   "4. Kart üzerindeki aksiyon durumunun 'Açık'tan 'Kapalı'ya değiştirilmesi"
+
+  ]
+
 }
+
+}
+ 
